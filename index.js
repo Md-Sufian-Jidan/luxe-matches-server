@@ -46,14 +46,20 @@ async function run() {
         });
 
         //user related api
-        app.put('/bio-data-edit/:email', async (req, res) => {
+        app.get('/get-bio-data/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email: email };
+            const result = await userCollection.findOne(query);
+            res.send(result);
+        });
+
+        app.patch('/bio-data-edit/:email', async (req, res) => {
             const email = req.params.email;
             const query = { email: email };
             const bioData = req.body;
             const updateBioData = {
                 $set: { bioData }
             };
-            console.log(updateBioData);
             const result = await userCollection.updateOne(query, updateBioData);
             res.send(result);
         });
