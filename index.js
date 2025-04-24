@@ -93,13 +93,14 @@ async function run() {
             res.send(users);
         });
 
-        // PATCH /api/admin/users/:id
-        app.patch('/users/:id', async (req, res) => {
+        app.patch('/make-admin/make-premium/:id', async (req, res) => {
             const { isAdmin, isPremium } = req.body;
-            const result = await userCollection.updateOne(
-                { _id: new ObjectId(req.params.id) },
-                { $set: { isAdmin: !!isAdmin, isPremium: !!isPremium } }
-            );
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const update = {
+                $set: { isAdmin: !!isAdmin, isPremium: !!isPremium }
+            };
+            const result = await userCollection.updateOne(filter, update);
             res.send(result);
         });
 
