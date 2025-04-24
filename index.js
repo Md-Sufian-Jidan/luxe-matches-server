@@ -106,8 +106,19 @@ async function run() {
             res.send({ users, count });
         });
 
+        app.get('/user/bioData-details/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const person = await userCollection.findOne(query);
+            const filter = {
+                'bioData.bioDataType': person.bioData.bioDataType,
+                'bioData.bioDataId': { $ne: person.bioData.bioDataId },
+            };
+            const similar = await userCollection.find(filter).limit(3).toArray();
+            res.send({ person, similar });
+        });
         //user related api
-        app.get('/user/get-bio-data/:email', async (req, res) => {
+        app.get('/user/get-bio-data/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             const query = { email: email };
             const result = await userCollection.findOne(query);
@@ -115,19 +126,19 @@ async function run() {
             res.send({ result, count });
         });
 
-        app.post('/user/make-bio-data-premium-request', async (req, res) => {
+        app.post('/user/make-bio-data-premium-request', verifyToken, async (req, res) => {
             const { bioData } = req.body;
             const result = await requestCollection.insertOne(bioData);
             res.send(result);
         });
 
-        app.post('/user/success-stories', async (req, res) => {
+        app.post('/user/success-stories', verifyToken, async (req, res) => {
             const story = { ...req.body, approved: false };
             const result = reviewCollection.insertOne(story);
             res.send(result);
         });
 
-        app.patch('/user/bio-data-edit/:email', async (req, res) => {
+        app.patch('/user/bio-data-edit/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             const query = { email: email };
             const bioData = req.body;
@@ -138,7 +149,7 @@ async function run() {
             res.send(result);
         });
         // admin related apis
-        app.get('/admin-stats', async (req, res) => {
+        app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
             // const paymentCol = req.app.locals.db.collection('payments');       // Stripe logs here
             const pipeline = [
                 { $match: { bioData: { $exists: true } } },
@@ -175,12 +186,12 @@ async function run() {
                 revenue: 1000,
             });
         });
-        app.get('/admin/premium-requests', async (req, res) => {
+        app.get('/admin/premium-requests', verifyToken, verifyAdmin, async (req, res) => {
             const result = await requestCollection.find().toArray();
             res.send(result);
         });
 
-        app.get('/admin/manage-users', async (req, res) => {
+        app.get('/admin/manage-users', verifyToken, verifyAdmin, async (req, res) => {
             const { q = '', page = 1, limit = 10 } = req.query;
             const skip = (page - 1) * limit;
             const query = q
@@ -196,12 +207,12 @@ async function run() {
             res.send(users);
         });
 
-        app.get('/admin/success-stories', async (req, res) => {
+        app.get('/admin/success-stories', verifyToken, verifyAdmin, async (req, res) => {
             const result = await reviewCollection.find().toArray();
             res.send(result);
         });
 
-        app.patch('/admin/make-admin/make-premium/:id', async (req, res) => {
+        app.patch('/admin/make-admin/make-premium/:id', verifyToken, verifyAdmin, async (req, res) => {
             const { isAdmin, isPremium } = req.body;
             const id = req.params.id;
             const filter = { _id: new ObjectId(id) };
