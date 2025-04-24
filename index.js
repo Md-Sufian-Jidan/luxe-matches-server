@@ -27,6 +27,32 @@ const client = new MongoClient(uri, {
     }
 });
 
+// middlewares 
+const verifyToken = (req, res, next) => {
+    // console.log('inside verify token', req.headers.authorization);
+    if (!req.headers.authorization) {
+        return res.status(401).send({ message: 'unauthorized access' });
+    }
+    const token = req.headers.authorization.split(' ')[1];
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+            return res.status(401).send({ message: 'unauthorized access' })
+        }
+        req.decoded = decoded;
+        next();
+    });
+};
+const verifyAdmin = async (req, res, next) => {
+    const email = req.decoded.email;
+    const query = { email: email };
+    const user = await userCollection.findOne(query);
+    const isAdmin = user?.role === 'admin';
+    if (!isAdmin) {
+        return res.status(403).send({ message: 'forbidden access' });
+    }
+    next();
+};
+
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
@@ -81,7 +107,7 @@ async function run() {
         });
 
         //user related api
-        app.get('/get-bio-data/:email', async (req, res) => {
+        app.get('/user/get-bio-data/:email', async (req, res) => {
             const email = req.params.email;
             const query = { email: email };
             const result = await userCollection.findOne(query);
@@ -89,7 +115,7 @@ async function run() {
             res.send({ result, count });
         });
 
-        app.post('/make-bio-data-premium-request', async (req, res) => {
+        app.post('/user/make-bio-data-premium-request', async (req, res) => {
             const { bioData } = req.body;
             const result = await requestCollection.insertOne(bioData);
             res.send(result);
@@ -101,7 +127,7 @@ async function run() {
             res.send(result);
         });
 
-        app.patch('/bio-data-edit/:email', async (req, res) => {
+        app.patch('/user/bio-data-edit/:email', async (req, res) => {
             const email = req.params.email;
             const query = { email: email };
             const bioData = req.body;
@@ -114,7 +140,6 @@ async function run() {
         // admin related apis
         app.get('/admin-stats', async (req, res) => {
             // const paymentCol = req.app.locals.db.collection('payments');       // Stripe logs here
-
             const pipeline = [
                 { $match: { bioData: { $exists: true } } },
                 {
@@ -150,7 +175,7 @@ async function run() {
                 revenue: 1000,
             });
         });
-        app.get('/premium-requests', async (req, res) => {
+        app.get('/admin/premium-requests', async (req, res) => {
             const result = await requestCollection.find().toArray();
             res.send(result);
         });
@@ -176,7 +201,7 @@ async function run() {
             res.send(result);
         });
 
-        app.patch('/make-admin/make-premium/:id', async (req, res) => {
+        app.patch('/admin/make-admin/make-premium/:id', async (req, res) => {
             const { isAdmin, isPremium } = req.body;
             const id = req.params.id;
             const filter = { _id: new ObjectId(id) };
