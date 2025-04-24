@@ -71,15 +71,35 @@ async function run() {
             const result = await userCollection.updateOne(query, updateBioData);
             res.send(result);
         });
-
         // admin related apis
         app.get('/premium-requests', async (req, res) => {
             const result = await requestCollection.find().toArray();
             res.send(result);
         });
 
-        app.get('/admin/manage-users', async(req, res) => {
-            const result = await userCollection.find().toArray();
+        app.get('/admin/manage-users', async (req, res) => {
+            const { q = '', page = 1, limit = 10 } = req.query;
+            const skip = (page - 1) * limit;
+            const query = q
+                ? { name: { $regex: q, $options: 'i' } }
+                : {};
+
+            const users = await userCollection
+                .find(query)
+                .skip(+skip)
+                .limit(+limit)
+                .toArray();
+
+            res.send(users);
+        });
+
+        // PATCH /api/admin/users/:id
+        app.patch('/users/:id', async (req, res) => {
+            const { isAdmin, isPremium } = req.body;
+            const result = await userCollection.updateOne(
+                { _id: new ObjectId(req.params.id) },
+                { $set: { isAdmin: !!isAdmin, isPremium: !!isPremium } }
+            );
             res.send(result);
         });
 
