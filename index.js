@@ -47,6 +47,11 @@ async function run() {
             res.send(result);
         });
 
+        app.get('/success-stories', async (req, res) => {
+            const result = await reviewCollection.find().toArray();
+            res.send(result);
+        });
+
         //user related api
         app.get('/get-bio-data/:email', async (req, res) => {
             const email = req.params.email;
@@ -98,6 +103,11 @@ async function run() {
                 .toArray();
 
             res.send(users);
+        });
+
+        app.get('/admin/success-stories', async (req, res) => {
+            const result = await reviewCollection.find().toArray();
+            res.send(result);
         });
 
         app.patch('/make-admin/make-premium/:id', async (req, res) => {
