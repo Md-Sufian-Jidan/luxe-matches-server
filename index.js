@@ -16,7 +16,7 @@ app.use(express.json());
 
 
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.qvjjrvn.mongodb.net/?appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -51,7 +51,8 @@ async function run() {
             const email = req.params.email;
             const query = { email: email };
             const result = await userCollection.findOne(query);
-            res.send(result);
+            const count = await userCollection.estimatedDocumentCount();
+            res.send({ result, count });
         });
 
         app.post('/make-bio-data-premium-request', async (req, res) => {
@@ -68,6 +69,30 @@ async function run() {
                 $set: { bioData }
             };
             const result = await userCollection.updateOne(query, updateBioData);
+            res.send(result);
+        });
+
+        // admin related apis
+        app.get('/premium-requests', async (req, res) => {
+            const result = await requestCollection.find().toArray();
+            res.send(result);
+        });
+
+        app.get('/admin/manage-users', async(req, res) => {
+            const result = await userCollection.find().toArray();
+            res.send(result);
+        });
+
+        app.patch('/admin/premium-requests/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updateBioData = {
+                $set: {
+                    isPremium: true,
+                }
+            };
+            const result = await userCollection.updateOne(filter, updateBioData);
+            const change = await requestCollection.deleteOne(id);
             res.send(result);
         });
 
