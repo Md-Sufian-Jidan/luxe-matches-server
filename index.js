@@ -112,6 +112,44 @@ async function run() {
             res.send(result);
         });
         // admin related apis
+        app.get('/admin-stats', async (req, res) => {
+            // const paymentCol = req.app.locals.db.collection('payments');       // Stripe logs here
+
+            const pipeline = [
+                { $match: { bioData: { $exists: true } } },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        male: { $sum: { $cond: [{ $eq: ['$bioData.bioDataType', 'Male'] }, 1, 0] } },
+                        female: { $sum: { $cond: [{ $eq: ['$bioData.bioDataType', 'Female'] }, 1, 0] } },
+                        premium: { $sum: { $cond: [{ $eq: ['$isPremium', true] }, 1, 0] } }
+                    }
+                },
+                { $project: { _id: 0 } }
+            ];
+
+            const [bioDataStats = { total: 0, male: 0, female: 0, premium: 0 }] =
+                await userCollection.aggregate(pipeline).toArray();
+
+            /* ---------- 2.  revenue ---------- */
+            // const revenueAgg = await paymentCol.aggregate([
+            //     { $match: { status: 'succeeded' } },            // only successful Stripe payments
+            //     { $group: { _id: null, revenue: { $sum: '$amountUsd' } } },
+            //     { $project: { _id: 0, revenue: 1 } }
+            // ]).toArray();
+
+            // const revenue = revenueAgg[0]?.revenue || 0;
+
+            /* ---------- 3.  send JSON ---------- */
+            res.json({
+                total: bioDataStats.total,
+                male: bioDataStats.male,
+                female: bioDataStats.female,
+                premium: bioDataStats.premium,
+                revenue: 1000,
+            });
+        });
         app.get('/premium-requests', async (req, res) => {
             const result = await requestCollection.find().toArray();
             res.send(result);
