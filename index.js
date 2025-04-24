@@ -33,6 +33,7 @@ async function run() {
         // Connect the client to the server	(optional starting in v4.7)
         // await client.connect();
         const userCollection = client.db('luxe-matches').collection('users');
+        const requestCollection = client.db('luxe-matches').collection('requests');
 
         app.post('/users', async (req, res) => {
             const user = req.body;
@@ -50,6 +51,12 @@ async function run() {
             const email = req.params.email;
             const query = { email: email };
             const result = await userCollection.findOne(query);
+            res.send(result);
+        });
+
+        app.post('/make-bio-data-premium-request', async (req, res) => {
+            const { bioData } = req.body;
+            const result = await requestCollection.insertOne(bioData);
             res.send(result);
         });
 
