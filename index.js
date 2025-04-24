@@ -58,6 +58,28 @@ async function run() {
             res.send(result);
         });
 
+        app.get('/users-bio-data', async (req, res) => {
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const gender = req.query.gender;
+            const division = req.query.division;
+            const minAge = parseInt(req.query.minAge) || 18;
+            const maxAge = parseInt(req.query.maxAge) || 99;
+            const skip = (page - 1) * limit;
+            const query = {
+                ...(gender && { 'bioData.bioDataType': gender }),
+                ...(division && { 'bioData.presentDivision': division }),
+                'bioData.age': { $gte: minAge, $lte: maxAge }
+            };
+            const users = await userCollection
+                .find(query)
+                .skip(+skip)
+                .limit(+limit)
+                .toArray();
+            const count = await userCollection.estimatedDocumentCount();
+            res.send({ users, count });
+        });
+
         //user related api
         app.get('/get-bio-data/:email', async (req, res) => {
             const email = req.params.email;
