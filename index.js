@@ -27,31 +27,6 @@ const client = new MongoClient(uri, {
     }
 });
 
-// middlewares 
-const verifyToken = (req, res, next) => {
-    // console.log('inside verify token', req.headers.authorization);
-    if (!req.headers.authorization) {
-        return res.status(401).send({ message: 'unauthorized access' });
-    }
-    const token = req.headers.authorization.split(' ')[1];
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if (err) {
-            return res.status(401).send({ message: 'unauthorized access' })
-        }
-        req.decoded = decoded;
-        next();
-    });
-};
-const verifyAdmin = async (req, res, next) => {
-    const email = req.decoded.email;
-    const query = { email: email };
-    const user = await userCollection.findOne(query);
-    const isAdmin = user?.role === 'admin';
-    if (!isAdmin) {
-        return res.status(403).send({ message: 'forbidden access' });
-    }
-    next();
-};
 
 async function run() {
     try {
@@ -60,6 +35,34 @@ async function run() {
         const userCollection = client.db('luxe-matches').collection('users');
         const requestCollection = client.db('luxe-matches').collection('requests');
         const reviewCollection = client.db('luxe-matches').collection('reviews');
+        const favouriteCollection = client.db('luxe-matches').collection('favourites');
+
+        // middlewares 
+        const verifyToken = (req, res, next) => {
+            // console.log('inside verify token', req.headers.authorization);
+            if (!req.headers.authorization) {
+                return res.status(401).send({ message: 'unauthorized access' });
+            }
+            const token = req.headers.authorization.split(' ')[1];
+            jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+                if (err) {
+                    return res.status(401).send({ message: 'unauthorized access' })
+                }
+                req.decoded = decoded;
+                next();
+            });
+        };
+        const verifyAdmin = async (req, res, next) => {
+            const email = req?.decoded?.email;
+            const query = { email: email };
+            const user = await userCollection.findOne(query);
+            // console.log(user?.isAdmin);
+            const isAdmin = user?.isAdmin;
+            if (!isAdmin) {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
+            next();
+        };
 
         // jwt related api
         app.post('/jwt', async (req, res) => {
@@ -117,6 +120,14 @@ async function run() {
             const similar = await userCollection.find(filter).limit(3).toArray();
             res.send({ person, similar });
         });
+
+        app.get('/check/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email: email };
+            const result = await userCollection.findOne(query);
+            res.send(result);
+        });
+
         //user related api
         app.get('/user/get-bio-data/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
@@ -135,6 +146,12 @@ async function run() {
         app.post('/user/success-stories', verifyToken, async (req, res) => {
             const story = { ...req.body, approved: false };
             const result = reviewCollection.insertOne(story);
+            res.send(result);
+        });
+
+        app.post('/user/add-favourite/:email', async (req, res) => {
+            const favouriteBioData = req.body;
+            const result = await favouriteCollection.insertOne(favouriteBioData);
             res.send(result);
         });
 
