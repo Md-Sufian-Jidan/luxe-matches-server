@@ -137,6 +137,11 @@ async function run() {
             res.send({ result, count });
         });
 
+        app.get('/user/favourites/:email', async(req, res) => {
+             const result = await favouriteCollection.find().toArray();
+             res.send(result);
+        });
+
         app.post('/user/make-bio-data-premium-request', verifyToken, async (req, res) => {
             const { bioData } = req.body;
             const result = await requestCollection.insertOne(bioData);
