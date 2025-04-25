@@ -170,6 +170,13 @@ async function run() {
             const result = await userCollection.updateOne(query, updateBioData);
             res.send(result);
         });
+
+        app.delete('/user/delete-favourites/:id', async(req, res) => {
+            const id = req.params.id;
+            const query = {_id: new ObjectId(id)};
+            const result = await favouriteCollection.deleteOne(query);
+            res.send(result);
+        });
         // admin related apis
         app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
             // const paymentCol = req.app.locals.db.collection('payments');       // Stripe logs here
