@@ -185,6 +185,14 @@ async function run() {
             const result = await favouriteCollection.deleteOne(query);
             res.send(result);
         });
+
+        app.delete('/user/contact-requests/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await paymentCollection.deleteOne(query);
+            res.send(result);
+        });
+
         // admin related apis
         app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
             // const paymentCol = req.app.locals.db.collection('payments');       // Stripe logs here
