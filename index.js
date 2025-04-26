@@ -3,6 +3,7 @@ const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const port = process.env.port || 5000;
 
@@ -36,6 +37,7 @@ async function run() {
         const requestCollection = client.db('luxe-matches').collection('requests');
         const reviewCollection = client.db('luxe-matches').collection('reviews');
         const favouriteCollection = client.db('luxe-matches').collection('favourites');
+        const paymentCollection = client.db('luxe-matches').collection('payments');
 
         // middlewares 
         const verifyToken = (req, res, next) => {
@@ -137,9 +139,9 @@ async function run() {
             res.send({ result, count });
         });
 
-        app.get('/user/favourites/:email', async(req, res) => {
-             const result = await favouriteCollection.find().toArray();
-             res.send(result);
+        app.get('/user/favourites/:email', async (req, res) => {
+            const result = await favouriteCollection.find().toArray();
+            res.send(result);
         });
 
         app.post('/user/make-bio-data-premium-request', verifyToken, async (req, res) => {
@@ -171,9 +173,9 @@ async function run() {
             res.send(result);
         });
 
-        app.delete('/user/delete-favourites/:id', async(req, res) => {
+        app.delete('/user/delete-favourites/:id', async (req, res) => {
             const id = req.params.id;
-            const query = {_id: new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const result = await favouriteCollection.deleteOne(query);
             res.send(result);
         });
@@ -263,6 +265,27 @@ async function run() {
             const result = await userCollection.updateOne(filter, updateBioData);
             const change = await requestCollection.deleteOne(id);
             res.send(result);
+        });
+
+        app.get('/single-bioData/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await userCollection.findOne(query);
+            res.send(result);
+        });
+
+        // payment intent
+        app.post('/create-payment-intent', async (req, res) => {
+            const { amount } = req.body;
+            const total = parseInt(amount * 100);
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: total,
+                currency: "usd",
+                payment_method_types: ['card'],
+                description: "Software development services"
+            });
+
+            res.send({ client_secret: paymentIntent.client_secret });
         });
 
         // Send a ping to confirm a successful connection
