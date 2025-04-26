@@ -139,8 +139,14 @@ async function run() {
             res.send({ result, count });
         });
 
-        app.get('/user/favourites/:email', async (req, res) => {
+        app.get('/user/favourites/:email', verifyToken, async (req, res) => {
             const result = await favouriteCollection.find().toArray();
+            res.send(result);
+        });
+
+        app.get('/user/my-contact-requests/:email', async (req, res) => {
+            const email = { requesterEmail: req.params?.email };
+            const result = await paymentCollection.find(email).toArray();
             res.send(result);
         });
 
