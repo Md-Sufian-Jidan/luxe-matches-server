@@ -12,6 +12,7 @@ app.use(cors({
     origin: [
         "http://localhost:5173",
         "http://localhost:5174",
+        "https://luxe-matches-client.vercel.app",
     ],
     credentials: true
 }));
@@ -89,7 +90,7 @@ async function run() {
             res.send(result);
         });
 
-        app.get('/users-bio-data', async (req, res) => {
+        app.get('/users-bio-data', verifyToken, async (req, res) => {
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 10;
             const gender = req.query.gender;
@@ -97,6 +98,7 @@ async function run() {
             const minAge = parseInt(req.query.minAge) || 18;
             const maxAge = parseInt(req.query.maxAge) || 99;
             const skip = (page - 1) * limit;
+            console.log(page, limit, skip);
             const query = {
                 ...(gender && { 'bioData.bioDataType': gender }),
                 ...(division && { 'bioData.presentDivision': division }),
@@ -108,10 +110,11 @@ async function run() {
                 .limit(+limit)
                 .toArray();
             const count = await userCollection.estimatedDocumentCount();
+            console.log(users);
             res.send({ users, count });
         });
 
-        app.get('/user/bioData-details/:id', async (req, res) => {
+        app.get('/user/bioData-details/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const person = await userCollection.findOne(query);
@@ -123,10 +126,37 @@ async function run() {
             res.send({ person, similar });
         });
 
-        app.get('/check/:email', async (req, res) => {
+        app.get('/single-bioData/:id', verifyToken, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await userCollection.findOne(query);
+            res.send(result);
+        });
+
+        app.get('/check/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             const query = { email: email };
             const result = await userCollection.findOne(query);
+            res.send(result);
+        });
+
+        // payment intent
+        app.post('/create-payment-intent', verifyToken, async (req, res) => {
+            const { amount } = req.body;
+            const total = parseInt(amount * 100);
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: total,
+                currency: "usd",
+                payment_method_types: ['card'],
+                description: "Software development services"
+            });
+
+            res.send({ client_secret: paymentIntent.client_secret });
+        });
+
+        app.post('/contact-payment', verifyToken, async (req, res) => {
+            const paymentDetails = req.body;
+            const result = await paymentCollection.insertOne(paymentDetails);
             res.send(result);
         });
 
@@ -144,7 +174,7 @@ async function run() {
             res.send(result);
         });
 
-        app.get('/user/my-contact-requests/:email', async (req, res) => {
+        app.get('/user/my-contact-requests/:email', verifyToken, async (req, res) => {
             const email = { requesterEmail: req.params?.email };
             const result = await paymentCollection.find(email).toArray();
             res.send(result);
@@ -162,7 +192,7 @@ async function run() {
             res.send(result);
         });
 
-        app.post('/user/add-favourite/:email', async (req, res) => {
+        app.post('/user/add-favourite/:email', verifyToken, async (req, res) => {
             const favouriteBioData = req.body;
             const result = await favouriteCollection.insertOne(favouriteBioData);
             res.send(result);
@@ -179,14 +209,14 @@ async function run() {
             res.send(result);
         });
 
-        app.delete('/user/delete-favourites/:id', async (req, res) => {
+        app.delete('/user/delete-favourites/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await favouriteCollection.deleteOne(query);
             res.send(result);
         });
 
-        app.delete('/user/contact-requests/:id', async (req, res) => {
+        app.delete('/user/contact-requests/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await paymentCollection.deleteOne(query);
@@ -195,7 +225,6 @@ async function run() {
 
         // admin related apis
         app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
-            // const paymentCol = req.app.locals.db.collection('payments');       // Stripe logs here
             const pipeline = [
                 { $match: { bioData: { $exists: true } } },
                 {
@@ -213,24 +242,22 @@ async function run() {
             const [bioDataStats = { total: 0, male: 0, female: 0, premium: 0 }] =
                 await userCollection.aggregate(pipeline).toArray();
 
-            /* ---------- 2.  revenue ---------- */
-            // const revenueAgg = await paymentCol.aggregate([
-            //     { $match: { status: 'succeeded' } },            // only successful Stripe payments
-            //     { $group: { _id: null, revenue: { $sum: '$amountUsd' } } },
-            //     { $project: { _id: 0, revenue: 1 } }
-            // ]).toArray();
+            const revenueAgg = await paymentCollection.aggregate([
+                { $match: { paymentStatus: 'succeeded' } },
+                { $group: { _id: null, revenue: { $sum: '$amountPaid' } } },
+                { $project: { _id: 0, revenue: 1 } }
+            ]).toArray();
 
-            // const revenue = revenueAgg[0]?.revenue || 0;
-
-            /* ---------- 3.  send JSON ---------- */
+            const revenue = revenueAgg[0]?.revenue || 0;
             res.json({
                 total: bioDataStats.total,
                 male: bioDataStats.male,
                 female: bioDataStats.female,
                 premium: bioDataStats.premium,
-                revenue: 1000,
+                revenue: revenue,
             });
         });
+
         app.get('/admin/premium-requests', verifyToken, verifyAdmin, async (req, res) => {
             const result = await requestCollection.find().toArray();
             res.send(result);
@@ -257,6 +284,11 @@ async function run() {
             res.send(result);
         });
 
+        app.get('/admin/pending-contact-requests', verifyToken, verifyAdmin, async (req, res) => {
+            const result = await paymentCollection.find().toArray();
+            res.send(result);
+        });
+
         app.patch('/admin/make-admin/make-premium/:id', verifyToken, verifyAdmin, async (req, res) => {
             const { isAdmin, isPremium } = req.body;
             const id = req.params.id;
@@ -268,7 +300,7 @@ async function run() {
             res.send(result);
         });
 
-        app.patch('/admin/premium-requests/:id', async (req, res) => {
+        app.patch('/admin/premium-requests/:id', verifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const filter = { _id: new ObjectId(id) };
             const updateBioData = {
@@ -281,36 +313,22 @@ async function run() {
             res.send(result);
         });
 
-        app.get('/single-bioData/:id', async (req, res) => {
+        app.patch('/admin/approve-contact-request/:id', verifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id;
-            const query = { _id: new ObjectId(id) };
-            const result = await userCollection.findOne(query);
-            res.send(result);
-        });
-
-        // payment intent
-        app.post('/create-payment-intent', async (req, res) => {
-            const { amount } = req.body;
-            const total = parseInt(amount * 100);
-            const paymentIntent = await stripe.paymentIntents.create({
-                amount: total,
-                currency: "usd",
-                payment_method_types: ['card'],
-                description: "Software development services"
-            });
-
-            res.send({ client_secret: paymentIntent.client_secret });
-        });
-
-        app.post('/contact-payment', async (req, res) => {
-            const paymentDetails = req.body;
-            const result = await paymentCollection.insertOne(paymentDetails);
+            const filter = { _id: new ObjectId(id) };
+            const updateApprove = {
+                $set: {
+                    approved: true,
+                    approveAt: new Date(),
+                }
+            };
+            const result = await paymentCollection.updateOne(filter, updateApprove);
             res.send(result);
         });
 
         // Send a ping to confirm a successful connection
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // await client.db("admin").command({ ping: 1 });
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
         // await client.close();
