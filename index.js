@@ -288,6 +288,12 @@ async function run() {
             res.send({ client_secret: paymentIntent.client_secret });
         });
 
+        app.post('/contact-payment', async (req, res) => {
+            const paymentDetails = req.body;
+            const result = await paymentCollection.insertOne(paymentDetails);
+            res.send(result);
+        });
+
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
