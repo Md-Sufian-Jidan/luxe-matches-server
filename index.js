@@ -74,6 +74,13 @@ async function run() {
             res.send({ token });
         });
 
+        app.get('/users-premium-biodata', async (req, res) => {
+            const query = { isPremium: true };
+            const result = await userCollection.find(query).toArray();
+            console.log(result);
+            res.send(result);
+        });
+
         app.post('/users', async (req, res) => {
             const user = req.body;
             const query = { email: user?.email };
@@ -90,7 +97,7 @@ async function run() {
             res.send(result);
         });
 
-        app.get('/users-bio-data', verifyToken, async (req, res) => {
+        app.get('/users-bio-data', async (req, res) => {
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 10;
             const gender = req.query.gender;
@@ -98,7 +105,6 @@ async function run() {
             const minAge = parseInt(req.query.minAge) || 18;
             const maxAge = parseInt(req.query.maxAge) || 99;
             const skip = (page - 1) * limit;
-            console.log(page, limit, skip);
             const query = {
                 ...(gender && { 'bioData.bioDataType': gender }),
                 ...(division && { 'bioData.presentDivision': division }),
@@ -110,8 +116,33 @@ async function run() {
                 .limit(+limit)
                 .toArray();
             const count = await userCollection.estimatedDocumentCount();
-            console.log(users);
             res.send({ users, count });
+        });
+
+        app.get('/home-stats', async (req, res) => {
+            const pipeline = [
+                { $match: { bioData: { $exists: true } } },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        male: { $sum: { $cond: [{ $eq: ['$bioData.bioDataType', 'Male'] }, 1, 0] } },
+                        female: { $sum: { $cond: [{ $eq: ['$bioData.bioDataType', 'Female'] }, 1, 0] } },
+                    }
+                },
+                { $project: { _id: 0 } }
+            ];
+
+            const [bioDataStats = { total: 0, male: 0, female: 0, }] =
+                await userCollection.aggregate(pipeline).toArray();
+            const marriage = await reviewCollection.estimatedDocumentCount();
+
+            res.json({
+                total: bioDataStats.total,
+                male: bioDataStats.male,
+                female: bioDataStats.female,
+                marriage: marriage
+            });
         });
 
         app.get('/user/bioData-details/:id', verifyToken, async (req, res) => {
@@ -342,5 +373,5 @@ app.get('/', (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`server is running on ${port}`);
+    // console.log(`server is running on ${port}`);
 });
