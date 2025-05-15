@@ -39,6 +39,7 @@ async function run() {
         const reviewCollection = client.db('luxe-matches').collection('reviews');
         const favouriteCollection = client.db('luxe-matches').collection('favourites');
         const paymentCollection = client.db('luxe-matches').collection('payments');
+        const userContactsCollection = client.db('luxe-matches').collection('userContacts');
 
         // middlewares 
         const verifyToken = (req, res, next) => {
@@ -77,7 +78,6 @@ async function run() {
         app.get('/users-premium-biodata', async (req, res) => {
             const query = { isPremium: true };
             const result = await userCollection.find(query).toArray();
-            console.log(result);
             res.send(result);
         });
 
@@ -90,6 +90,12 @@ async function run() {
             }
             const result = await userCollection.insertOne(user);
             res.send(result);
+        });
+
+        app.post('/user-contact', async (req, res) => {
+            const contact = req.body;
+            const result = await userContactsCollection.insertOne(contact);
+            res.send(result)
         });
 
         app.get('/success-stories', async (req, res) => {
